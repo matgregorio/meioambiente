@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - mongo-data:/data/db
+  backend:
+    build: ./backend
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017/recolhafacil
+      - JWT_SECRET=change_me
+      - UPLOADS_DIR=./uploads
+      - BASE_URL=http://localhost:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo
+    volumes:
+      - ./backend:/usr/src/app
+      - backend-uploads:/usr/src/app/uploads
+  frontend:
+    build: ./frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api
+      - VITE_PUBLIC_BASE_URL=http://localhost:5173
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+volumes:
+  mongo-data:
+  backend-uploads:

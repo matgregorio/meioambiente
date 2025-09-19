@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-50 text-slate-800 font-sans antialiased;
+}
+
+.page {
+  display: none;
+  animation: fadeIn 0.5s;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-loader {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 5px solid #dbeafe;
+  border-top-color: #3b82f6;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.admin-tab {
+  cursor: pointer;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+}
+
+.admin-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.flatpickr-day.disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+}
