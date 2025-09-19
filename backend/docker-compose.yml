@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - mongo-data:/data/db
+  backend:
+    build: .
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017/recolhafacil
+      - JWT_SECRET=change_me
+      - UPLOADS_DIR=./uploads
+      - BASE_URL=http://localhost:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo
+    volumes:
+      - .:/usr/src/app
+      - uploads:/usr/src/app/uploads
+volumes:
+  mongo-data:
+  uploads:
