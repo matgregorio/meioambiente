@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { z } from 'zod';
 import { startOfDay, endOfDay, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { formatInTimeZone, zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
@@ -11,25 +12,35 @@ import { env } from '../../config/env.js';
 
 const scheduleSchema = z.object({
   type: z.enum(['poda', 'moveis', 'vidro-eletronicos']),
-  date: z.string().regex(/\d{4}-\d{2}-\d{2}/, 'Data inválida'),
-  addressId: z.string().length(24, 'Endereço inválido'),
+  date: z.string().regex(/\d{4}-\d{2}-\d{2}/, 'Data invalida'),
+  addressId: z.string().length(24, 'Endereco invalido'),
   requesterName: z.string().min(3),
   cpfCnpj: z.string().min(11),
   phone: z.string().min(10),
   description: z.string().max(500).optional()
 });
 
+const buildVerifyUrl = (protocol) => new URL(`/verify/${protocol}`, env.baseUrl).toString();
+
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
 export async function createSchedule(req, res, next) {
   try {
     const data = scheduleSchema.parse(req.body);
     if (!validateCpfCnpj(data.cpfCnpj)) {
-      throw new AppError(422, 'CPF/CNPJ inválido');
+      throw new AppError(422, 'CPF/CNPJ invalido');
     }
     if (!validatePhone(data.phone)) {
-      throw new AppError(422, 'Telefone inválido');
+      throw new AppError(422, 'Telefone invalido');
     }
     const address = await Address.findOne({ _id: data.addressId, deletedAt: null }).populate('neighborhoodId');
-    if (!address) throw new AppError(404, 'Endereço não encontrado');
+    if (!address) throw new AppError(404, 'Endereco nao encontrado');
     const scheduleDateUtc = assertValidScheduleDate(data.type, data.date);
     const existingSameMonth = await Schedule.findOne({
       addressId: data.addressId,
@@ -41,7 +52,7 @@ export async function createSchedule(req, res, next) {
       }
     });
     if (existingSameMonth) {
-      throw new AppError(409, 'Já existe uma recolha para este endereço neste mês.');
+      throw new AppError(409, 'Ja existe uma recolha para este endereco neste mes.');
     }
     const dayCount = await Schedule.countDocuments({
       type: data.type,
@@ -52,10 +63,10 @@ export async function createSchedule(req, res, next) {
       }
     });
     if (dayCount >= scheduleTypes[data.type].limit) {
-      throw new AppError(409, 'Limite diário atingido para este tipo de recolha.');
+      throw new AppError(409, 'Limite diario atingido para este tipo de recolha.');
     }
-    const protocol = `${Date.now()}${Math.round(Math.random() * 1e4)}`;
-    const qrcodePayload = `${env.baseUrl}/verify/${protocol}`;
+    const protocol = crypto.randomUUID();
+    const qrcodeUrl = buildVerifyUrl(protocol);
     const schedule = await Schedule.create({
       protocol,
       type: data.type,
@@ -68,7 +79,7 @@ export async function createSchedule(req, res, next) {
       phone: data.phone,
       description: data.description,
       status: 'Agendado',
-      qrcodePayload,
+      qrcodePayload: qrcodeUrl,
       createdByIp: req.ip,
       userAgent: req.headers['user-agent']
     });
@@ -82,11 +93,11 @@ export async function createSchedule(req, res, next) {
     });
     res.status(201).json({
       protocol,
-      qrcodeUrl: qrcodePayload
+      qrcodeUrl
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return next(new AppError(422, 'Dados inválidos', err.errors));
+      return next(new AppError(422, 'Dados invalidos', err.errors));
     }
     return next(err);
   }
@@ -95,6 +106,8 @@ export async function createSchedule(req, res, next) {
 export async function listSchedules(req, res, next) {
   try {
     const { q, date, status, type, page = 1, limit = 20 } = req.query;
+    const pageNumber = parsePositiveInteger(page, 1);
+    const pageSize = Math.min(parsePositiveInteger(limit, 20), 100);
     const query = { deletedAt: null };
     if (status) query.status = status;
     if (type) query.type = type;
@@ -108,10 +121,10 @@ export async function listSchedules(req, res, next) {
     }
     const schedules = await Schedule.find(query)
       .sort({ date: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize);
     const total = await Schedule.countDocuments(query);
-    res.json({ data: schedules, total });
+    res.json({ data: schedules, total, page: pageNumber, limit: pageSize });
   } catch (err) {
     next(err);
   }
@@ -135,7 +148,7 @@ export async function getAvailability(req, res, next) {
   try {
     const { type } = req.params;
     const config = scheduleTypes[type];
-    if (!config) throw new AppError(422, 'Tipo de recolha inválido');
+    if (!config) throw new AppError(422, 'Tipo de recolha invalido');
     const timeZone = 'America/Sao_Paulo';
     const nowZoned = utcToZonedTime(new Date(), timeZone);
     const startDate = startOfDay(nowZoned);
@@ -185,27 +198,40 @@ export async function getAvailability(req, res, next) {
 export async function getSchedule(req, res, next) {
   try {
     const schedule = await Schedule.findOne({ protocol: req.params.protocol, deletedAt: null });
-    if (!schedule) throw new AppError(404, 'Agendamento não encontrado');
+    if (!schedule) throw new AppError(404, 'Agendamento nao encontrado');
     res.json(schedule);
   } catch (err) {
     next(err);
   }
 }
 
+const maskCpfCnpj = (value) => {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-**`;
+  }
+  if (digits.length === 14) {
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-**`;
+  }
+  return '***';
+};
+
 export async function verifySchedule(req, res, next) {
   try {
     const schedule = await Schedule.findOne({ protocol: req.params.protocol, deletedAt: null });
-    if (!schedule) throw new AppError(404, 'Agendamento não encontrado');
+    if (!schedule) throw new AppError(404, 'Agendamento nao encontrado');
     res.json({
       protocol: schedule.protocol,
       type: schedule.type,
       date: formatInTimeZone(schedule.date, 'America/Sao_Paulo', 'yyyy-MM-dd'),
       requesterName: schedule.requesterName,
+      cpfCnpj: maskCpfCnpj(schedule.cpfCnpj),
       neighborhoodName: schedule.neighborhoodName,
       addressText: schedule.addressText,
       status: schedule.status,
       description: schedule.description,
-      qrcodePayload: schedule.qrcodePayload
+      driverPhotoUrl: schedule.driverPhotoUrl || null
     });
   } catch (err) {
     next(err);
@@ -216,15 +242,15 @@ export async function completeSchedule(req, res, next) {
   try {
     const { protocol } = req.params;
     const schedule = await Schedule.findOne({ protocol, deletedAt: null });
-    if (!schedule) throw new AppError(404, 'Agendamento não encontrado');
-    if (schedule.status === 'Concluído') {
-      throw new AppError(409, 'Agendamento já concluído');
+    if (!schedule) throw new AppError(404, 'Agendamento nao encontrado');
+    if (schedule.status === 'Concluido') {
+      throw new AppError(409, 'Agendamento ja concluido');
     }
     if (!req.file && req.user?.role === 'driver') {
-      throw new AppError(422, 'Foto obrigatória');
+      throw new AppError(422, 'Foto obrigatoria');
     }
     const before = schedule.toObject();
-    schedule.status = 'Concluído';
+    schedule.status = 'Concluido';
     if (req.file) {
       schedule.driverPhotoUrl = `/uploads/${req.file.filename}`;
     }
@@ -246,7 +272,7 @@ export async function completeSchedule(req, res, next) {
 export async function deleteSchedule(req, res, next) {
   try {
     const schedule = await Schedule.findOne({ protocol: req.params.protocol, deletedAt: null });
-    if (!schedule) throw new AppError(404, 'Agendamento não encontrado');
+    if (!schedule) throw new AppError(404, 'Agendamento nao encontrado');
     schedule.deletedAt = new Date();
     await schedule.save();
     await createAuditLog({

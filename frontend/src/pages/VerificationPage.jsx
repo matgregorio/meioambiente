@@ -5,13 +5,13 @@ import { toast } from 'react-toastify';
 
 const STATUS_COLORS = {
   Agendado: 'text-blue-500',
-  'Conclu√≠do': 'text-green-500'
+  "ConcluÌdo": 'text-green-500'
 };
 
 const TYPE_NAMES = {
   poda: 'Poda',
-  moveis: 'M√≥veis',
-  'vidro-eletronicos': 'Vidro e Eletr√¥nicos'
+  moveis: 'MÛveis',
+  'vidro-eletronicos': 'Vidro e EletrÙnicos'
 };
 
 function formatDate(dateString) {
@@ -33,7 +33,7 @@ export default function VerificationPage() {
         setNotFound(false);
       } catch (err) {
         setNotFound(true);
-        toast.error('Agendamento n√£o encontrado.');
+        toast.error('Agendamento n„o encontrado.');
       }
     };
     load();
@@ -44,14 +44,16 @@ export default function VerificationPage() {
       <div className="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-lg">
         <h2 className="text-3xl font-bold mb-4 text-center">Detalhes do Agendamento</h2>
         {notFound ? (
-          <div className="text-center text-red-500 font-bold">Agendamento n√£o encontrado.</div>
+          <div className="text-center text-red-500 font-bold">Agendamento n„o encontrado.</div>
         ) : !schedule ? (
           <div className="text-center text-slate-500">Carregando...</div>
         ) : (
           <div id="verification-details" className="text-left border-t border-b py-4 mb-6 space-y-2">
             <p className="flex justify-between">
               <strong>Status:</strong>
-              <span className={`${STATUS_COLORS[schedule.status]} font-semibold`}>{schedule.status}</span>
+              <span className={`${STATUS_COLORS[schedule.status] || 'text-slate-500'} font-semibold`}>
+                {schedule.status}
+              </span>
             </p>
             <p>
               <strong>Protocolo:</strong> #{schedule.protocol}
@@ -66,14 +68,24 @@ export default function VerificationPage() {
               <strong>Nome:</strong> {schedule.requesterName}
             </p>
             <p>
-              <strong>CPF/CNPJ:</strong> {schedule.cpfCnpj}
+              <strong>CPF/CNPJ:</strong> {schedule.cpfCnpj || 'Protegido'}
             </p>
             <p>
-              <strong>Endere√ßo:</strong> {schedule.addressText}, {schedule.neighborhoodName}
+              <strong>EndereÁo:</strong> {schedule.addressText}, {schedule.neighborhoodName}
             </p>
             <p>
-              <strong>Descri√ß√£o:</strong> {schedule.description || 'N/A'}
+              <strong>DescriÁ„o:</strong> {schedule.description || 'N/A'}
             </p>
+            {schedule.driverPhotoUrl ? (
+              <div className="mt-4">
+                <strong>Foto registrada:</strong>
+                <img
+                  src={schedule.driverPhotoUrl}
+                  alt="ComprovaÁ„o da recolha"
+                  className="mt-2 rounded-lg max-h-64 border"
+                />
+              </div>
+            ) : null}
           </div>
         )}
         <div className="text-center">

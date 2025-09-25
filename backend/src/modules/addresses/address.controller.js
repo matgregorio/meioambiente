@@ -13,10 +13,46 @@ const addressSchema = z.object({
   street: z.string().min(3)
 });
 
+const escapeRegExp = (value) => value.replace(/[-/\\^$*+?.()|[\\]{}]/g, '\\$&');
+
 export async function listNeighborhoods(req, res, next) {
   try {
     const neighborhoods = await Neighborhood.find({ deletedAt: null }).sort({ name: 1 });
     res.json(neighborhoods);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listNeighborhoodOverview(req, res, next) {
+  try {
+    const neighborhoods = await Neighborhood.find({ deletedAt: null }).sort({ name: 1 }).lean();
+    const neighborhoodIds = neighborhoods.map((item) => item._id);
+    const addresses = await Address.find({
+      neighborhoodId: { $in: neighborhoodIds },
+      deletedAt: null
+    })
+      .sort({ street: 1 })
+      .lean();
+
+    const addressesByNeighborhood = addresses.reduce((acc, address) => {
+      const key = address.neighborhoodId.toString();
+      acc[key] = acc[key] || [];
+      acc[key].push(address);
+      return acc;
+    }, {});
+
+    const payload = neighborhoods.map((neighborhood) => ({
+      id: neighborhood._id,
+      name: neighborhood.name,
+      streets:
+        (addressesByNeighborhood[neighborhood._id.toString()] || []).map((address) => ({
+          id: address._id,
+          name: address.street
+        }))
+    }));
+
+    res.json(payload);
   } catch (err) {
     next(err);
   }
@@ -36,7 +72,7 @@ export async function createNeighborhood(req, res, next) {
     res.status(201).json(neighborhood);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return next(new AppError(422, 'Dados inválidos', err.errors));
+      return next(new AppError(422, 'Dados invalidos', err.errors));
     }
     next(err);
   }
@@ -45,7 +81,7 @@ export async function createNeighborhood(req, res, next) {
 export async function deleteNeighborhood(req, res, next) {
   try {
     const neighborhood = await Neighborhood.findOne({ _id: req.params.id, deletedAt: null });
-    if (!neighborhood) throw new AppError(404, 'Bairro não encontrado');
+    if (!neighborhood) throw new AppError(404, 'Bairro nao encontrado');
     neighborhood.deletedAt = new Date();
     await neighborhood.save();
     await Address.updateMany({ neighborhoodId: neighborhood._id }, { deletedAt: new Date() });
@@ -67,7 +103,7 @@ export async function listAddresses(req, res, next) {
     const { neighborhoodId, search } = req.query;
     const query = { deletedAt: null };
     if (neighborhoodId) query.neighborhoodId = neighborhoodId;
-    if (search) query.street = { $regex: search, $options: 'i' };
+    if (search) query.street = { $regex: escapeRegExp(search), $options: 'i' };
     const addresses = await Address.find(query).sort({ street: 1 });
     res.json(addresses);
   } catch (err) {
@@ -79,7 +115,7 @@ export async function listPublicAddresses(req, res, next) {
   try {
     const { search } = req.query;
     const query = { deletedAt: null };
-    if (search) query.street = { $regex: search, $options: 'i' };
+    if (search) query.street = { $regex: escapeRegExp(search), $options: 'i' };
     const addresses = await Address.find(query)
       .populate('neighborhoodId')
       .sort({ street: 1 });
@@ -98,7 +134,7 @@ export async function createAddress(req, res, next) {
   try {
     const data = addressSchema.parse(req.body);
     const neighborhood = await Neighborhood.findOne({ _id: data.neighborhoodId, deletedAt: null });
-    if (!neighborhood) throw new AppError(404, 'Bairro não encontrado');
+    if (!neighborhood) throw new AppError(404, 'Bairro nao encontrado');
     const address = await Address.create(data);
     await createAuditLog({
       action: 'ADDRESS_CREATE',
@@ -110,7 +146,7 @@ export async function createAddress(req, res, next) {
     res.status(201).json(address);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return next(new AppError(422, 'Dados inválidos', err.errors));
+      return next(new AppError(422, 'Dados invalidos', err.errors));
     }
     next(err);
   }
@@ -119,7 +155,7 @@ export async function createAddress(req, res, next) {
 export async function deleteAddress(req, res, next) {
   try {
     const address = await Address.findOne({ _id: req.params.id, deletedAt: null });
-    if (!address) throw new AppError(404, 'Endereço não encontrado');
+    if (!address) throw new AppError(404, 'Endereco nao encontrado');
     address.deletedAt = new Date();
     await address.save();
     await createAuditLog({

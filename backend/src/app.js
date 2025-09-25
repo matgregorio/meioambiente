@@ -15,15 +15,30 @@ const __dirname = path.dirname(__filename);
 
 export const app = express();
 
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
 app.use(helmet());
+const allowedOrigins = env.corsAllowedOrigins;
 app.use(
   cors({
-    origin: (origin, callback) => callback(null, true),
-    credentials: true
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      const corsError = new Error('Origin not allowed by CORS');
+      corsError.statusCode = 403;
+      return callback(corsError);
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(morgan('combined'));
 app.use('/uploads', express.static(path.join(__dirname, '..', env.uploadsDir)));
 

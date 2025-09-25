@@ -13,7 +13,7 @@ const scheduleSchema = new mongoose.Schema(
     cpfCnpj: { type: String, required: true },
     phone: { type: String, required: true },
     description: { type: String },
-    status: { type: String, enum: ['Agendado', 'Concluído'], default: 'Agendado' },
+    status: { type: String, enum: ['Agendado', 'Concluido'], default: 'Agendado' },
     driverPhotoUrl: { type: String },
     qrcodePayload: { type: String, required: true },
     createdByIp: { type: String },

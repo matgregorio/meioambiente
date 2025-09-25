@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../../middlewares/auth.js';
 import {
   listNeighborhoods,
+  listNeighborhoodOverview,
   createNeighborhood,
   deleteNeighborhood,
   listAddresses,
@@ -14,6 +15,7 @@ const router = Router();
 router.use(authenticate(), authorize(['admin']));
 
 router.get('/neighborhoods', listNeighborhoods);
+router.get('/neighborhoods/overview', listNeighborhoodOverview);
 router.post('/neighborhoods', createNeighborhood);
 router.delete('/neighborhoods/:id', deleteNeighborhood);
 

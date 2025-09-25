@@ -296,7 +296,7 @@ describe('Schedules API', () => {
       .set('Authorization', `Bearer ${token}`)
       .attach('photo', imagePath);
     expect(completeRes.status).toBe(200);
-    expect(completeRes.body.status).toBe('Concluído');
+    expect(completeRes.body.status).toBe('Concluido');
   });
 
   test('driver deve enviar foto para concluir', async () => {

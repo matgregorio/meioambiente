@@ -47,20 +47,16 @@ export default function AdminDashboardPage() {
 
   const loadNeighborhoods = async () => {
     try {
-      const { data } = await api.get('/addresses/neighborhoods');
-      const detailed = await Promise.all(
-        data.map(async (bairro) => {
-          const response = await api.get('/addresses', { params: { neighborhoodId: bairro._id } });
-          return {
-            id: bairro._id,
-            name: bairro.name,
-            streets: response.data.map((street) => ({ id: street._id, name: street.street }))
-          };
-        })
+      const { data } = await api.get('/addresses/neighborhoods/overview');
+      setNeighborhoods(
+        data.map((bairro) => ({
+          id: bairro.id,
+          name: bairro.name,
+          streets: bairro.streets || []
+        }))
       );
-      setNeighborhoods(detailed);
     } catch (err) {
-      toast.error('NÃ£o foi possÃ­vel carregar os endereÃ§os.');
+      toast.error('Não foi possível carregar os endereços.');
     }
   };
 
